@@ -99,35 +99,76 @@ public static class ConfigManager
 
     public static List<string> GetStoreMappingsFromDatabase()
     {
-        List<string> storeMappings = new List<string>();
+        var storeMappings = new List<string>();
         string connectionString = ConfigurationManager.ConnectionStrings["SQL"].ConnectionString;
         string machineName = Environment.MachineName;
+
         try
         {
-            using (SqlConnection conn = new SqlConnection(connectionString))
+            using (var conn = new SqlConnection(connectionString))
             {
                 conn.Open();
-                string sql = "SELECT Mapping FROM Sales.SalesSheetMapping WHERE Machine = @Machine";
-                using (SqlCommand cmd = new SqlCommand(sql, conn))
+
+                // 1) Check if a row for this machine already exists
+                const string existsSql = @"
+                SELECT COUNT(*) 
+                  FROM Sales.SalesSheetMapping 
+                 WHERE Machine = @Machine";
+                using (var existsCmd = new SqlCommand(existsSql, conn))
                 {
-                    cmd.Parameters.AddWithValue("@Machine", machineName);
-                    object result = cmd.ExecuteScalar();
-                    string mappingStr = (result != null) ? result.ToString() : string.Empty;
-                    if (!string.IsNullOrWhiteSpace(mappingStr))
+                    existsCmd.Parameters.AddWithValue("@Machine", machineName);
+                    int rowCount = (int)existsCmd.ExecuteScalar();
+
+                    if (rowCount == 0)
                     {
-                        // Assume comma-separated list.
-                        storeMappings = new List<string>(
-                            mappingStr.Split(new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
-                                      .Select(s => s.Trim())
-                        );
+                        // 2) No row found → insert a placeholder with Company='Unknown'
+                        const string insertSql = @"
+                        INSERT INTO Sales.SalesSheetMapping (Machine, Company, Mapping)
+                        VALUES (@Machine, @Company, @Mapping)";
+                        using (var insertCmd = new SqlCommand(insertSql, conn))
+                        {
+                            insertCmd.Parameters.AddWithValue("@Machine", machineName);
+                            insertCmd.Parameters.AddWithValue("@Company", "Unknown");
+                            insertCmd.Parameters.AddWithValue("@Mapping", "Unknown");
+                            insertCmd.ExecuteNonQuery();
+                        }
+
+                        // 3) Return empty list (no Mapping yet)
+                        return storeMappings;
+                    }
+                }
+
+                // 4) Row exists: fetch its Mapping column
+                const string selectSql = @"
+                SELECT Mapping
+                  FROM Sales.SalesSheetMapping
+                 WHERE Machine = @Machine";
+                using (var selectCmd = new SqlCommand(selectSql, conn))
+                {
+                    selectCmd.Parameters.AddWithValue("@Machine", machineName);
+                    object result = selectCmd.ExecuteScalar();
+
+                    // Handle both “no rows” (shouldn’t happen now) and DBNull
+                    if (result != null && result != DBNull.Value)
+                    {
+                        string mappingStr = result.ToString().Trim();
+                        if (!string.IsNullOrWhiteSpace(mappingStr))
+                        {
+                            // 5) Split comma‑separated Mapping into individual stores
+                            storeMappings = mappingStr
+                                .Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
+                                .Select(s => s.Trim())
+                                .ToList();
+                        }
                     }
                 }
             }
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            // Log error or handle as needed.
+            // TODO: log ex so you can diagnose any failures
         }
+
         return storeMappings;
     }
 
