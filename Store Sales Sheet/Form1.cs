@@ -1,10 +1,9 @@
-using Microsoft.Data.SqlClient;
+ï»¿using Microsoft.Data.SqlClient;
 using System;
 using System.Data;
 using System.Linq;
 using System.Windows.Forms;
 using System.Configuration;
-using System.Collections.Generic;
 
 namespace Store_Sales_Sheet
 {
@@ -83,7 +82,6 @@ namespace Store_Sales_Sheet
                 tabControl1.TabPages.Add(tabPage);
             }
         }
-
 
         private void LoadDataForStore(DataGridView dgv, string storeName, DateTime startDate, Dictionary<string, List<int>> weekMapping)
         {
@@ -185,9 +183,9 @@ namespace Store_Sales_Sheet
                                 {
                                     e.Value = num.ToString("0.00") + "%";
                                 }
-                                else if (format == "£0")
+                                else if (format == "Â£0")
                                 {
-                                    e.Value = "£" + num.ToString("0");
+                                    e.Value = "Â£" + num.ToString("0");
                                 }
                                 e.FormattingApplied = true;
                             }
@@ -199,7 +197,7 @@ namespace Store_Sales_Sheet
             {
                 MessageBox.Show($"Error loading data for store {storeName}: {ex.Message}");
             }
-        }
+        }        
 
     }
 }
